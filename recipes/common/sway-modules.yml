@@ -1,0 +1,7 @@
+# Sway desktop customizations: build-time scripts that append to or
+# rewrite the stock desktop configs (foot, waybar) so upstream
+# changes flow through.
+modules:
+  - type: script # appends the personal-blue font setting to the stock foot config at build time
+    scripts:
+      - foot-config.py
