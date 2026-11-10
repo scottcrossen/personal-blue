@@ -6,3 +6,6 @@ cosign.private
 .idea
 .directory
 *.kate-swp
+
+__pycache__/
+*.pyc
