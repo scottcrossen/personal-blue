@@ -16,4 +16,11 @@ modules:
       - source: system/etc
         destination: /etc # copies files/system/etc/* into the image's /etc; per-variant files live under files/system/<variant>/ with their own entry
 
+  - type: dnf
+    remove:
+      packages:
+        # remove the RPM Firefox in favor of the flatpak (org.mozilla.firefox)
+        - firefox
+        - firefox-langpacks
+
   - type: signing # this sets up the proper policy & signing files for signed images to work fully
