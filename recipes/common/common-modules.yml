@@ -1,0 +1,24 @@
+# Modules shared by all personal-blue variants, in wayblue's layout
+# (recipes/common/*.yml, included via `from-file:` in the variant
+# recipe). Mirrors wayblue's common-modules.yml: the files module
+# copies both system/usr and system/etc.
+modules:
+  - type: files
+    files:
+      - source: system/usr
+        destination: /usr
+      - source: system/etc
+        destination: /etc
+
+  - type: dnf
+    remove:
+      packages:
+        # remove the RPM Firefox in favor of the flatpak (org.mozilla.firefox)
+        - firefox
+        - firefox-langpacks
+
+  - type: dnf
+    install:
+      packages:
+        # display configuration tool
+        - wdisplays

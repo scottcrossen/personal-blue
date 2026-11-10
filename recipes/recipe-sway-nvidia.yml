@@ -9,24 +9,10 @@ description: Scott's personal OS image, layered on wayblue sway-nvidia.
 base-image: ghcr.io/wayblueorg/sway-nvidia
 image-version: 44
 
-# module configuration, executed in order
+# module configuration, executed in order.
+# Shared modules live in recipes/common/ and are included via
+# `from-file:`, the way wayblue structures its recipes.
 modules:
-  - type: files
-    files:
-      - source: system/etc
-        destination: /etc # copies files/system/etc/* into the image's /etc; per-variant files live under files/system/<variant>/ with their own entry
-
-  - type: dnf
-    remove:
-      packages:
-        # remove the RPM Firefox in favor of the flatpak (org.mozilla.firefox)
-        - firefox
-        - firefox-langpacks
-
-  - type: dnf
-    install:
-      packages:
-        # display configuration tool
-        - wdisplays
-
-  - type: signing # this sets up the proper policy & signing files for signed images to work fully
+  - from-file: common/common-modules.yml
+  - from-file: common/muse-sdk-modules.yml
+  - from-file: common/final-modules.yml
