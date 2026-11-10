@@ -5,3 +5,7 @@ modules:
   - type: script # appends the personal-blue font setting to the stock foot config at build time
     scripts:
       - foot-config.py
+
+  - type: script # rewrites the stock waybar config into the personal-blue default at build time
+    scripts:
+      - waybar-config.py
