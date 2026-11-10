@@ -1,0 +1,6 @@
+# Keeper CLI (Keeper Commander), installed at base so the passwords
+# and tokens the first-run setup needs can come from Keeper.
+modules:
+  - type: script # installs Keeper Commander (the Keeper CLI) at build time
+    scripts:
+      - install-keeper-cli.sh
