@@ -23,4 +23,10 @@ modules:
         - firefox
         - firefox-langpacks
 
+  - type: dnf
+    install:
+      packages:
+        # display configuration tool
+        - wdisplays
+
   - type: signing # this sets up the proper policy & signing files for signed images to work fully
