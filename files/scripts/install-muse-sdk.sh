@@ -50,6 +50,9 @@ grep -q '^DEFAULT_SOURCE=' /tmp/muse-install.sh || { echo "muse-sdk: downloaded 
 grep -q '^install_musegadget()' /tmp/muse-install.sh || { echo "muse-sdk: downloaded file is not install.sh (no install_musegadget)"; exit 1; }
 
 echo "muse-sdk: running the installer (no token, no pairing)"
+# /usr/local/bin does not exist in the image at script-module time,
+# and the installer symlinks /usr/local/bin/musegadget into it.
+mkdir -p /usr/local/bin
 bash /tmp/muse-install.sh \
     --from "git+${REPO}@${MUSE_SDK_PIN}#subdirectory=linux" \
     --run-as muse --no-pair --yes
