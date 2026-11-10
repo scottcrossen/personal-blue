@@ -1,7 +1,7 @@
 ---
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
-# image will be published to ghcr.io/scottcrossen/personal-blue
-name: personal-blue
+# image will be published to ghcr.io/scottcrossen/personal-blue-sway-nvidia
+name: personal-blue-sway-nvidia
 # description will be included in the image's metadata
 description: Scott's personal OS image, layered on wayblue sway-nvidia.
 
@@ -13,7 +13,7 @@ image-version: 44
 modules:
   - type: files
     files:
-      - source: system
-        destination: / # copies files/system/* (* means everything inside it) into your image's root folder /
+      - source: system/etc
+        destination: /etc # copies files/system/etc/* into the image's /etc; per-variant files live under files/system/<variant>/ with their own entry
 
   - type: signing # this sets up the proper policy & signing files for signed images to work fully
