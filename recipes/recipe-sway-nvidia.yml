@@ -28,5 +28,11 @@ modules:
       packages:
         # display configuration tool
         - wdisplays
+        # the only extra dependency of the Muse SDK installer
+        - python3-cryptography
+
+  - type: script # installs the Muse Linux Device SDK from a pinned commit at build time
+    scripts:
+      - install-muse-sdk.sh
 
   - type: signing # this sets up the proper policy & signing files for signed images to work fully
