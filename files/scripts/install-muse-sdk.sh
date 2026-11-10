@@ -44,7 +44,10 @@ fi
 
 echo "muse-sdk: fetching install.sh at the pinned commit"
 curl -fsSL "${INSTALLER_URL}" -o /tmp/muse-install.sh
-grep -q "musegadget" /tmp/muse-install.sh
+# The download must be the real installer, not an error page: it must
+# carry the installer's distinctive markers.
+grep -q '^DEFAULT_SOURCE=' /tmp/muse-install.sh || { echo "muse-sdk: downloaded file is not install.sh (no DEFAULT_SOURCE)"; exit 1; }
+grep -q '^install_musegadget()' /tmp/muse-install.sh || { echo "muse-sdk: downloaded file is not install.sh (no install_musegadget)"; exit 1; }
 
 echo "muse-sdk: running the installer (no token, no pairing)"
 bash /tmp/muse-install.sh \
@@ -73,9 +76,31 @@ for line in open(unit):
 if exec_start is None:
     print("muse-sdk: no ExecStart in bluetooth.service; skipping drop-in")
     sys.exit(0)
-if "--noplugin" in exec_start:
-    print("muse-sdk: bluetooth.service already disables a plugin; skipping drop-in")
+# Merge "battery" into any existing --noplugin list (same as the
+# installer's own logic); otherwise append --noplugin=battery.
+args = exec_start.split()
+def has_battery(args):
+    for i, a in enumerate(args):
+        if a.startswith("--noplugin="):
+            if "battery" in a.split("=", 1)[1].split(","):
+                return True
+        elif a == "--noplugin" and i + 1 < len(args):
+            if "battery" in args[i + 1].split(","):
+                return True
+    return False
+if has_battery(args):
+    print("muse-sdk: bluetooth.service already disables the battery plugin; skipping drop-in")
     sys.exit(0)
+for i, a in enumerate(args):
+    if a == "--noplugin" and i + 1 < len(args):
+        args[i + 1] = args[i + 1] + ",battery" if args[i + 1] else "battery"
+        break
+    if a.startswith("--noplugin="):
+        args[i] = a + ",battery"
+        break
+else:
+    args.append("--noplugin=battery")
+exec_start = " ".join(args)
 os.makedirs(os.path.dirname(dropin), exist_ok=True)
 with open(dropin, "w") as f:
     f.write("# Written by the musegadget installer: never ask phones to bond.\n")

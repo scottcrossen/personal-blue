@@ -4,8 +4,12 @@ name: Check Muse SDK version
 # (MUSE_SDK_PIN in files/scripts/install-muse-sdk.sh). This workflow
 # compares that pin with upstream main weekly and opens a PR bumping
 # it when main has moved. The bump PR still needs Scott's and Code
-# Review's approval before merge (dual gate); the image build on the
-# PR is the real test of the new pin.
+# Review's approval before merge (dual gate).
+#
+# Note: bump PRs are opened with GITHUB_TOKEN, so the Build Custom
+# Image run on a bump PR needs a maintainer to approve the workflow
+# run first (token-created PRs do not run workflows automatically).
+# Once approved, the build runs and is the real test of the new pin.
 
 on:
   schedule:
@@ -41,8 +45,14 @@ jobs:
           import re, sys
           path, latest, date, msg = sys.argv[1:5]
           text = open(path).read()
+          old_pin = re.search(r'MUSE_SDK_PIN="([^"]+)"', text).group(1)
           text = re.sub(r'MUSE_SDK_PIN="[^"]+"', f'MUSE_SDK_PIN="{latest}"', text, count=1)
           text = re.sub(r'^# Pinned .*$', f'# Pinned {date}: {msg}', text, count=1, flags=re.M)
+          # Fail loudly if either replacement did not land (a stale pin
+          # or comment must never be committed silently).
+          assert f'MUSE_SDK_PIN="{latest}"' in text, "pin replacement failed"
+          assert f'# Pinned {date}: {msg}' in text, "pin comment replacement failed"
+          assert old_pin not in text, "old pin still present"
           open(path, "w").write(text)
           PYEOF
           short="${latest:0:7}"
@@ -55,4 +65,4 @@ jobs:
           git push -u origin "$branch"
           gh pr create --title "Bump Muse SDK pin to ${short}" --body "Upstream main is now ${latest} (${date}): ${msg}.
 
-          Updates the pinned commit in files/scripts/install-muse-sdk.sh. Needs Scott's and Code Review's approval before merge (dual gate); the image build on this PR is the real test of the new pin."
+          Updates the pinned commit in files/scripts/install-muse-sdk.sh. Needs Scott's and Code Review's approval before merge (dual gate). The image build on this PR is the real test of the new pin — but because this PR was opened with GITHUB_TOKEN, a maintainer must first approve the Build Custom Image workflow run on it."
