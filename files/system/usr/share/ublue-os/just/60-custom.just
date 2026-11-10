@@ -50,11 +50,15 @@ gh-setup:
         echo "GitHub CLI: already logged in."
     fi
     if [ ! -f ~/.ssh/id_ed25519.pub ]; then
-        echo "GitHub CLI: creating an SSH key."
-        ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
-        gh ssh-key add ~/.ssh/id_ed25519.pub --title "$(hostname)-$(whoami)"
+        echo "GitHub CLI: creating an SSH key (you will be prompted for a passphrase)."
+        ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
+    fi
+    key_title="$(hostname)-$(whoami)"
+    if gh ssh-key list 2>/dev/null | grep -q "$key_title"; then
+        echo "GitHub CLI: SSH key already on GitHub."
     else
-        echo "GitHub CLI: SSH key already exists."
+        echo "GitHub CLI: adding the SSH key to GitHub."
+        gh ssh-key add ~/.ssh/id_ed25519.pub --title "$key_title"
     fi
 
 # Muse SDK: fetch the token from Keeper, pair, set the run-as user, enable the service.
@@ -65,11 +69,17 @@ muse-sdk:
         echo "Muse SDK: not installed in this image; skipping (install the SDK first)."
         exit 0
     fi
+    if sudo test -s /var/lib/musegadget/pairing.json && systemctl is-enabled musegadget.service >/dev/null 2>&1; then
+        echo "Muse SDK: already paired and enabled."
+        exit 0
+    fi
+    read -rp "Set up the Muse SDK (fetch the token from Keeper, pair, and enable the service)? [Y/n] " answer
+    case "$answer" in ""|y|Y|yes|YES) ;; *) echo "Muse SDK: skipped."; exit 0 ;; esac
     # Override the build-time placeholder run-as user (muse) with this account.
     sudo mkdir -p /etc/systemd/system/musegadget.service.d
     printf '[Service]\nEnvironment=MUSEGADGET_RUN_AS=%s\n' "$(whoami)" | sudo tee /etc/systemd/system/musegadget.service.d/10-run-as.conf >/dev/null
     sudo systemctl daemon-reload
-    if [ -s /var/lib/musegadget/pairing.json ]; then
+    if sudo test -s /var/lib/musegadget/pairing.json; then
         echo "Muse SDK: already paired."
     else
         echo "Muse SDK: fetching the SDK token from Keeper."
@@ -77,8 +87,7 @@ muse-sdk:
         token=$(keeper get "$record" --format password)
         [ -n "$token" ] || { echo "Could not read a password from that Keeper record."; exit 1; }
         sudo install -d -m 0700 /var/lib/musegadget
-        printf '%s\n' "$token" | sudo tee /var/lib/musegadget/sdk_token >/dev/null
-        sudo chmod 600 /var/lib/musegadget/sdk_token
+        printf '%s\n' "$token" | sudo install -m 0600 /dev/stdin /var/lib/musegadget/sdk_token
         echo "Muse SDK: token saved. Pairing now — follow the prompts in the Muse app."
         sudo musegadget pair
     fi

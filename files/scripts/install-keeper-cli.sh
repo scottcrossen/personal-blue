@@ -23,5 +23,8 @@ fi
 # /usr/local/bin does not exist in the image at script-module time.
 mkdir -p /usr/local/bin
 ln -sf "${VENV}/bin/keeper" /usr/local/bin/keeper
-"${VENV}/bin/keeper" --version
+# Assert the pinned version actually installed (pip has no hash check
+# here; the version pin plus this assertion is the practical guard —
+# a full --require-hashes lockfile is a follow-up).
+"${VENV}/bin/keeper" --version | grep -q "${KEEPER_VERSION}" || { echo "keeper-cli: expected version ${KEEPER_VERSION}"; exit 1; }
 echo "keeper-cli: installed"
