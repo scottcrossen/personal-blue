@@ -1,0 +1,8 @@
+cosign.key
+cosign.private
+/Containerfile
+*.iso
+*.iso-CHECKSUM
+.idea
+.directory
+*.kate-swp
