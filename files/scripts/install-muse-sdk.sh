@@ -107,7 +107,7 @@ exec_start = " ".join(args)
 os.makedirs(os.path.dirname(dropin), exist_ok=True)
 with open(dropin, "w") as f:
     f.write("# Written by the musegadget installer: never ask phones to bond.\n")
-    f.write("[Service]\nExecStart=\nExecStart=" + exec_start + " --noplugin=battery\n")
+    f.write("[Service]\nExecStart=\nExecStart=" + exec_start + "\n")
 print(f"muse-sdk: wrote BlueZ drop-in {dropin}")
 PYEOF
 

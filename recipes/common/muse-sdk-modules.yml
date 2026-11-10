@@ -1,0 +1,11 @@
+# Muse Linux Device SDK, installed in the image at build time.
+modules:
+  - type: dnf
+    install:
+      packages:
+        # the only extra dependency of the Muse SDK installer
+        - python3-cryptography
+
+  - type: script # installs the Muse Linux Device SDK from a pinned commit at build time
+    scripts:
+      - install-muse-sdk.sh
