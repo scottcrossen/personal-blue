@@ -20,6 +20,8 @@ if [ ! -x "${VENV}/bin/keeper" ]; then
     python3 -m venv "${VENV}"
     "${VENV}/bin/pip" install --quiet "keepercommander==${KEEPER_VERSION}"
 fi
+# /usr/local/bin does not exist in the image at script-module time.
+mkdir -p /usr/local/bin
 ln -sf "${VENV}/bin/keeper" /usr/local/bin/keeper
 "${VENV}/bin/keeper" --version
 echo "keeper-cli: installed"
