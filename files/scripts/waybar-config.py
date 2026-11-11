@@ -21,6 +21,7 @@ Default path: /etc/xdg/waybar/config.jsonc
 import json
 import re
 import sys
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 PATH = sys.argv[1] if len(sys.argv) > 1 else "/etc/xdg/waybar/config.jsonc"
 
@@ -105,7 +106,7 @@ def main():
         "    },",
         '    "clock#utc": {',
         '        "format": "{:%H:%M UTC}",',
-        '        "timezone": "etc/utc",',
+        '        "timezone": "Etc/UTC",',
         r'        "tooltip-format": "<big>{:%Y-%m-%d} (UTC) </big>\n<tt><small>{calendar}</small></tt>",',
         '        "format-alt": "{:%Y-%m-%d} (UTC)"',
         "    },",
@@ -128,6 +129,14 @@ def main():
         die("battery#bat2 still present after edit")
     if data.get("position") != "bottom":
         die("position is not bottom after edit")
+    # The timezone must resolve against the system tz database, or
+    # waybar silently falls back to local time (as "etc/utc" did —
+    # the zone is "Etc/UTC").
+    utc_tz = data.get("clock#utc", {}).get("timezone")
+    try:
+        ZoneInfo(utc_tz)
+    except (ZoneInfoNotFoundError, ValueError):
+        die(f"clock#utc timezone {utc_tz!r} does not resolve")
 
     with open(PATH, "w") as f:
         f.write(text)
