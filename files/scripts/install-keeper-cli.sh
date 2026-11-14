@@ -3,7 +3,7 @@
 #
 # Uses a dedicated venv at /opt/keeper so the system Python stays
 # untouched (Fedora marks the system Python externally managed).
-# The `keeper` command is symlinked into /usr/local/bin.
+# The `keeper` command is symlinked into /usr/bin.
 # First-run setup (`ujust setup`) logs in and pulls passwords and
 # tokens from Keeper; nothing secret is baked into the image.
 #
@@ -36,9 +36,11 @@ if [ ! -x "${VENV}/bin/keeper" ]; then
     grep -qF "keepercommander==${KEEPER_VERSION} " "${REQUIREMENTS_FILE}" || { echo "keeper-cli: ${REQUIREMENTS_FILE} does not pin keepercommander==${KEEPER_VERSION}; regenerate it for this KEEPER_VERSION"; exit 1; }
     "${VENV}/bin/pip" install --quiet --require-hashes -r "${REQUIREMENTS_FILE}"
 fi
-# /usr/local/bin does not exist in the image at script-module time.
-mkdir -p /usr/local/bin
-ln -sf "${VENV}/bin/keeper" /usr/local/bin/keeper
+# Symlink into /usr/bin, not /usr/local/bin: on this base /usr/local
+# is a symlink into /var/usrlocal, and image /var content is only
+# seeded on fresh installs — a /usr/local/bin symlink never reaches
+# upgraded systems. /usr/bin is image territory and lands everywhere.
+ln -sf "${VENV}/bin/keeper" /usr/bin/keeper
 # Assert the pinned version actually installed. pip verified every
 # artifact against the hashes in the requirements file; this
 # assertion is the guard for anything hashes cannot express, e.g. a
