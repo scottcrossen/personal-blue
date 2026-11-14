@@ -7,12 +7,17 @@
 # First-run setup (`ujust setup`) logs in and pulls passwords and
 # tokens from Keeper; nothing secret is baked into the image.
 #
-# Pinned to the version validated on the laptop (18.1.9). Bump the
-# version here to upgrade; there is no automated check for it yet.
+# The version is pinned (KEEPER_VERSION below, the version validated
+# on the laptop). A weekly workflow checks PyPI for a newer release
+# and opens a bump PR when one appears.
 
 set -euo pipefail
 
+# Single source of truth for the pinned version: KEEPER_VERSION
+# below. The scheduled version-check workflow
+# (.github/workflows/check-keeper-cli.yml) greps it from here.
 KEEPER_VERSION="18.1.9"
+# Pinned 2026-11-03T04:05:35Z: keepercommander 18.1.9 on PyPI
 VENV="/opt/keeper"
 
 if [ ! -x "${VENV}/bin/keeper" ]; then

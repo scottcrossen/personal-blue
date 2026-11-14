@@ -1,0 +1,67 @@
+name: Check Keeper CLI version
+
+# Keeper Commander (the Keeper CLI) is pinned by version
+# (KEEPER_VERSION in files/scripts/install-keeper-cli.sh). This
+# workflow compares that pin with the latest release on PyPI weekly
+# and opens a PR bumping it when PyPI has moved. The bump PR still
+# needs Scott's and Code Review's approval before merge (dual gate).
+#
+# Note: bump PRs are opened with GITHUB_TOKEN, so the Build Custom
+# Image run on a bump PR needs a maintainer to approve the workflow
+# run first (token-created PRs do not run workflows automatically).
+# Once approved, the build runs and is the real test of the new pin.
+
+on:
+  schedule:
+    - cron: '0 7 * * 2' # Tuesdays 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compare pinned version with latest on PyPI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          script="files/scripts/install-keeper-cli.sh"
+          pinned=$(grep -oP 'KEEPER_VERSION="\K[^"]+' "$script")
+          pypi=$(curl -fsSL https://pypi.org/pypi/keepercommander/json)
+          latest=$(printf '%s' "$pypi" | python3 -c 'import json, sys; print(json.load(sys.stdin)["info"]["version"])')
+          echo "pinned: $pinned"
+          echo "latest: $latest"
+          if [ "$pinned" = "$latest" ]; then
+            echo "already up to date"
+            exit 0
+          fi
+          date=$(printf '%s' "$pypi" | python3 -c 'import json, sys; d = json.load(sys.stdin); v = sys.argv[1]; print(min(f["upload_time_iso_8601"] for f in d["releases"][v]))' "$latest")
+          python3 - "$script" "$latest" "$date" <<'PYEOF'
+          import re, sys
+          path, latest, date = sys.argv[1:4]
+          text = open(path).read()
+          old_pin = re.search(r'KEEPER_VERSION="([^"]+)"', text).group(1)
+          text = re.sub(r'KEEPER_VERSION="[^"]+"', f'KEEPER_VERSION="{latest}"', text, count=1)
+          text = re.sub(r'^# Pinned .*$', f'# Pinned {date}: keepercommander {latest} on PyPI', text, count=1, flags=re.M)
+          # Fail loudly if either replacement did not land (a stale pin
+          # or comment must never be committed silently).
+          assert f'KEEPER_VERSION="{latest}"' in text, "pin replacement failed"
+          assert f'# Pinned {date}: keepercommander {latest} on PyPI' in text, "pin comment replacement failed"
+          assert f'KEEPER_VERSION="{old_pin}"' not in text, "old pin still present"
+          open(path, "w").write(text)
+          PYEOF
+          branch="keeper-bump-${latest}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add "$script"
+          git commit -m "Bump Keeper CLI pin to ${latest}"
+          git push -u origin "$branch"
+          gh pr create --title "Bump Keeper CLI pin to ${latest}" --body "PyPI now has keepercommander ${latest} (released ${date}); the image pins ${pinned}.
+
+          Updates the pinned version in files/scripts/install-keeper-cli.sh. Needs Scott's and Code Review's approval before merge (dual gate). The image build on this PR is the real test of the new pin — but because this PR was opened with GITHUB_TOKEN, a maintainer must first approve the Build Custom Image workflow run on it."
