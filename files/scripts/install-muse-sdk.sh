@@ -11,7 +11,8 @@
 #   - installs the missing system packages (dnf; only
 #     python3-cryptography is extra, and the recipe installs it too)
 #   - installs uv 0.9.9 and the musegadget package from the pinned
-#     source into /opt/musegadget, symlinked at /usr/local/bin
+#     source into /opt/musegadget; the installer symlinks it at
+#     /usr/local/bin and this script adds a /usr/bin symlink
 #   - writes the musegadget systemd unit (MUSEGADGET_RUN_AS=muse)
 #     but does NOT enable or start it (no systemd); `ujust setup`
 #     enables it and overrides the run-as user to the real account
@@ -51,11 +52,20 @@ grep -q '^install_musegadget()' /tmp/muse-install.sh || { echo "muse-sdk: downlo
 
 echo "muse-sdk: running the installer (no token, no pairing)"
 # /usr/local/bin does not exist in the image at script-module time,
-# and the installer symlinks /usr/local/bin/musegadget into it.
+# and the installer symlinks /usr/local/bin/musegadget into it, so
+# create the directory for it. That symlink alone is not enough —
+# see the /usr/bin symlink added after the install.
 mkdir -p /usr/local/bin
 bash /tmp/muse-install.sh \
     --from "git+${REPO}@${MUSE_SDK_PIN}#subdirectory=linux" \
     --run-as muse --no-pair --yes
+
+# The installer's /usr/local/bin symlink does not survive upgrades:
+# /usr/local is a symlink into /var/usrlocal on this base, and image
+# /var content is only seeded on fresh installs. Add a symlink in
+# /usr/bin (image territory) pointing at the same binary, so the
+# `musegadget` command exists on upgraded systems too.
+ln -sf "$(readlink -f /usr/local/bin/musegadget)" /usr/bin/musegadget
 
 # BlueZ battery-plugin drop-in: the installer skips this without
 # systemd (it reads the unit via systemctl). Replicate it from the
@@ -113,6 +123,7 @@ PYEOF
 
 # Verify the install landed.
 test -x /usr/local/bin/musegadget
+test -x /usr/bin/musegadget
 test -f /etc/systemd/system/musegadget.service
 grep -q "MUSEGADGET_RUN_AS=muse" /etc/systemd/system/musegadget.service
 echo "muse-sdk: installed; service is present but not enabled (ujust setup enables it)"
