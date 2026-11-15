@@ -18,8 +18,10 @@ keeper-login:
         echo "Keeper: already logged in."
         exit 0
     fi
-    echo "Keeper: log in now (this opens the Keeper shell; log in, then type exit)."
-    keeper shell
+    read -rp "Keeper email: " keeper_email
+    [ -n "$keeper_email" ] || { echo "Keeper email is required."; exit 1; }
+    echo "Keeper: logging in (Keeper prompts for your master password and any 2FA)."
+    keeper login "$keeper_email"
     keeper whoami </dev/null >/dev/null 2>&1 || { echo "Keeper login did not complete; rerun 'ujust setup'."; exit 1; }
 
 # Git identity (name + email). Prompts; nothing is baked into the image.
