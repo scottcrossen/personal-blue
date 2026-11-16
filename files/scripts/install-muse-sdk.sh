@@ -27,8 +27,8 @@
 
 set -euo pipefail
 
-MUSE_SDK_PIN="ebefd65decf5380de46efa6524b1ae53641a29b6"
-# Pinned 2026-11-10T19:50:58Z: Tuya cloud skill: confirm risky switching and label it as cloud (#373)
+MUSE_SDK_PIN="c3d58c66a02bfea44847e0345714507166656bed"
+# Pinned 2026-11-16T05:47:14Z: linux: only warn about the retired emSign C1 and C3 roots (#422)
 
 REPO="https://github.com/facebookincubator/muse-gadget-sdk"
 INSTALLER_URL="https://raw.githubusercontent.com/facebookincubator/muse-gadget-sdk/${MUSE_SDK_PIN}/linux/install.sh"
