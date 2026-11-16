@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Pick the laptop panel's startup workspace.
+
+Runs once at sway startup (via `exec` in the sway config drop-in —
+not exec_always, so config reloads don't re-run it). If an external
+output is connected, the laptop panel (eDP-1) starts on workspace 10;
+otherwise it starts on workspace 1.
+
+Nothing is pinned: there is deliberately no `workspace ... output`
+assignment, so after startup workspace 10 lives wherever it is opened
+or moved, like any other workspace.
+
+Outputs can take a moment to settle at startup, so poll briefly for
+an external output before deciding.
+"""
+
+import json
+import subprocess
+import sys
+import time
+
+PANEL = "eDP-1"
+POLL_SECONDS = 1.5
+POLL_INTERVAL = 0.1
+
+
+def active_outputs():
+    try:
+        out = subprocess.check_output(
+            ["swaymsg", "-t", "get_outputs"], text=True, timeout=5
+        )
+        return {o["name"] for o in json.loads(out) if o.get("active")}
+    except Exception:
+        return set()
+
+
+def main():
+    names = set()
+    external = set()
+    deadline = time.monotonic() + POLL_SECONDS
+    while True:
+        names = active_outputs()
+        external = names - {PANEL}
+        if external or time.monotonic() >= deadline:
+            break
+        time.sleep(POLL_INTERVAL)
+    if PANEL not in names:
+        return 0
+    workspace = "10" if external else "1"
+    subprocess.run(["swaymsg", "focus", "output", PANEL], check=False)
+    subprocess.run(["swaymsg", "workspace", workspace], check=False)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
