@@ -26,7 +26,10 @@ def die(msg):
 
 
 def active_font_lines(text):
-    return [line for line in text.splitlines() if re.match(r"^font=", line)]
+    # Indented or loosely spaced font= lines are still active settings
+    # as far as foot's ini parser is concerned, so they count here too.
+    # Commented lines (# ...) don't match and stay inactive.
+    return [line for line in text.splitlines() if re.match(r"^\s*font\s*=", line)]
 
 
 def main():

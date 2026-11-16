@@ -3,7 +3,7 @@
 
 Runs once at sway startup (via `exec` in the sway config drop-in —
 not exec_always, so config reloads don't re-run it). If an external
-output is connected, the laptop panel (eDP-1) starts on workspace 10;
+output is active, the laptop panel (eDP-1) starts on workspace 10;
 otherwise it starts on workspace 1.
 
 Nothing is pinned: there is deliberately no `workspace ... output`
