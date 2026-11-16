@@ -7,13 +7,42 @@
 # Keeper at first run, never baked into the image.
 
 # First-run setup: Keeper login, git identity, GitHub CLI, Muse SDK, Firefox flatpak.
-setup: keeper-login git-identity gh-setup muse-sdk firefox-flatpak
+setup: login-mode keeper-login git-identity gh-setup muse-sdk firefox-flatpak
     @echo "Setup complete."
 
-# Log in to Keeper CLI (once). Later steps pull passwords/tokens from Keeper.
+# Login mode: a machine is set up for Keeper OR for the Muse SDK,
+# never both. Setup asks once and records the choice; the two login
+# steps below honor it. Delete the mode file to choose again.
+login-mode:
+    #!/usr/bin/bash
+    set -euo pipefail
+    mode_file="$HOME/.config/personal-blue/login-mode"
+    if [ -f "$mode_file" ]; then
+        echo "Login mode: $(cat "$mode_file") (recorded in $mode_file; delete the file to choose again)."
+        exit 0
+    fi
+    echo "This machine can be set up for one login, not both:"
+    echo "  1) Keeper — log in to Keeper on this machine. The Muse SDK will not be set up."
+    echo "  2) Muse SDK — pair the Muse SDK on this machine. Keeper will not be logged in."
+    read -rp "Choose 1 or 2: " choice
+    case "$choice" in
+        1) mode="keeper" ;;
+        2) mode="sdk" ;;
+        *) echo "Please answer 1 or 2."; exit 1 ;;
+    esac
+    mkdir -p "$(dirname "$mode_file")"
+    printf '%s\n' "$mode" > "$mode_file"
+    echo "Login mode: $mode."
+
+# Log in to Keeper CLI (once). Keeper credentials serve Keeper only:
+# no other setup step reads anything from Keeper.
 keeper-login:
     #!/usr/bin/bash
     set -euo pipefail
+    if [ -f "$HOME/.config/personal-blue/login-mode" ] && [ "$(cat "$HOME/.config/personal-blue/login-mode")" = "sdk" ]; then
+        echo "Keeper: skipped — this machine is in Muse SDK mode (see 'ujust login-mode')."
+        exit 0
+    fi
     if keeper whoami </dev/null >/dev/null 2>&1; then
         echo "Keeper: already logged in."
         exit 0
@@ -98,6 +127,10 @@ gh-setup:
 muse-sdk:
     #!/usr/bin/bash
     set -euo pipefail
+    if [ -f "$HOME/.config/personal-blue/login-mode" ] && [ "$(cat "$HOME/.config/personal-blue/login-mode")" = "keeper" ]; then
+        echo "Muse SDK: skipped — this machine is in Keeper mode (see 'ujust login-mode')."
+        exit 0
+    fi
     if ! systemctl cat musegadget.service >/dev/null 2>&1; then
         echo "Muse SDK: not installed in this image; skipping (install the SDK first)."
         exit 0
@@ -106,7 +139,7 @@ muse-sdk:
         echo "Muse SDK: already paired and enabled."
         exit 0
     fi
-    read -rp "Set up the Muse SDK (fetch the token from Keeper, pair, and enable the service)? [Y/n] " answer
+    read -rp "Set up the Muse SDK (pair and enable the service)? [Y/n] " answer
     case "$answer" in ""|y|Y|yes|YES) ;; *) echo "Muse SDK: skipped."; exit 0 ;; esac
     # Override the build-time placeholder run-as user (muse) with this account.
     sudo mkdir -p /etc/systemd/system/musegadget.service.d
@@ -115,10 +148,10 @@ muse-sdk:
     if sudo test -s /var/lib/musegadget/pairing.json; then
         echo "Muse SDK: already paired."
     else
-        echo "Muse SDK: fetching the SDK token from Keeper."
-        read -rp "Keeper record for the Muse SDK token (title or UID): " record
-        token=$(keeper get "$record" --format password)
-        [ -n "$token" ] || { echo "Could not read a password from that Keeper record."; exit 1; }
+        echo "Muse SDK: enter the SDK token (from the Muse app; input is hidden, and the token is saved under /var/lib/musegadget, never in Keeper)."
+        read -rsp "Muse SDK token: " token
+        echo
+        [ -n "$token" ] || { echo "No token entered."; exit 1; }
         sudo install -d -m 0700 /var/lib/musegadget
         printf '%s\n' "$token" | sudo install -m 0600 /dev/stdin /var/lib/musegadget/sdk_token
         echo "Muse SDK: token saved. Pairing now — follow the prompts in the Muse app."
