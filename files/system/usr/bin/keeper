@@ -19,13 +19,22 @@
 # (~/.local/share/.keeper), and KEEPER_DATA_HOME overrides the data
 # home. Pre-fix the permissions in every location that has the files;
 # chmod is idempotent and the guards make absent locations no-ops.
-keeper_config_dirs="${XDG_DATA_HOME:-"$HOME/.local/share"}/.keeper $HOME/.keeper"
-[ -n "${KEEPER_DATA_HOME:-}" ] && keeper_config_dirs="$KEEPER_DATA_HOME/.keeper $keeper_config_dirs"
-for d in $keeper_config_dirs; do
-    for f in "$d/config.json" "$d/logging_config.yaml"; do
+# Each candidate is passed as a single quoted argument, so locations
+# containing spaces work too.
+fix_keeper_config_perms() {
+    for f in "$1/config.json" "$1/logging_config.yaml"; do
         [ -f "$f" ] && chmod 600 "$f" 2>/dev/null
     done
-done
+    return 0
+}
+fix_keeper_config_perms "${XDG_DATA_HOME:-"$HOME/.local/share"}/.keeper"
+fix_keeper_config_perms "$HOME/.keeper"
+if [ -n "${KEEPER_DATA_HOME:-}" ]; then
+    # Upstream appends .keeper to KEEPER_DATA_HOME only when the value
+    # doesn't already end in it — cover both forms.
+    fix_keeper_config_perms "$KEEPER_DATA_HOME"
+    fix_keeper_config_perms "$KEEPER_DATA_HOME/.keeper"
+fi
 PYTHONWARNINGS="ignore::SyntaxWarning${PYTHONWARNINGS:+,$PYTHONWARNINGS}"
 export PYTHONWARNINGS
 exec /opt/keeper/bin/keeper "$@"

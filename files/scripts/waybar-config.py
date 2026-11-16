@@ -64,6 +64,11 @@ def strip_jsonc(s):
         elif c == "/" and i + 1 < n and s[i + 1] == "/":
             while i < n and s[i] != "\n":
                 i += 1
+        elif c == "/" and i + 1 < n and s[i + 1] == "*":
+            i += 2
+            while i + 1 < n and not (s[i] == "*" and s[i + 1] == "/"):
+                i += 1
+            i += 2
         else:
             out.append(c)
             i += 1
@@ -125,6 +130,8 @@ def main():
         die("clock#local missing from modules-right after edit")
     if "clock#utc" not in data.get("modules-right", []):
         die("clock#utc missing from modules-right after edit")
+    if "sway/workspaces" not in data:
+        die("sway/workspaces block missing after edit")
     if any("bat2" in key for key in data):
         die("battery#bat2 still present after edit")
     if data.get("position") != "bottom":
