@@ -3,8 +3,8 @@
 # by the base justfile (import? "60-custom.just").
 # Run once on a fresh host: `ujust setup`. Every step is idempotent
 # and skips work that is already done. Nothing here contains personal
-# info: names, emails and tokens are prompted for or pulled from
-# Keeper at first run, never baked into the image.
+# info: names, emails and tokens are prompted for at first run,
+# never baked into the image.
 
 # First-run setup: Keeper login, git identity, GitHub CLI, Muse SDK, Firefox flatpak.
 setup: login-mode keeper-login git-identity gh-setup muse-sdk firefox-flatpak
@@ -123,7 +123,7 @@ gh-setup:
         gh ssh-key add ~/.ssh/id_ed25519.pub --title "Personal Computer"
     fi
 
-# Muse SDK: fetch the token from Keeper, pair, set the run-as user, enable the service.
+# Muse SDK: prompt for the token directly, pair, set the run-as user, enable the service.
 muse-sdk:
     #!/usr/bin/bash
     set -euo pipefail
