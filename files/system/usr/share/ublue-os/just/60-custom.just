@@ -8,35 +8,84 @@
 
 # First-run setup: Keeper login, git identity, GitHub CLI, Muse SDK, Firefox flatpak.
 setup: login-mode keeper-login git-identity gh-setup muse-sdk firefox-flatpak
-    @echo "Setup complete."
+    #!/usr/bin/bash
+    set -euo pipefail
+    # Stamp the booted image version into the login-mode state file:
+    # the login configuration above is complete for this image, so
+    # later setup runs on the same version have nothing to redo. A
+    # failed step aborts setup before this body runs, leaving the old
+    # version recorded so the next run asks again.
+    state_file="$HOME/.config/personal-blue/login-mode"
+    current_version="$(rpm-ostree status --json 2>/dev/null | python3 -c 'import json,sys; print(next((d.get("version","") for d in json.load(sys.stdin)["deployments"] if d.get("booted")), ""))' 2>/dev/null || true)"
+    if [ -f "$state_file" ] && [ -n "$current_version" ]; then
+        recorded_mode="$(sed -n '2p' "$state_file")"
+        case "$recorded_mode" in
+            keeper|sdk) printf '%s\n%s\n' "$current_version" "$recorded_mode" > "$state_file" ;;
+        esac
+    fi
+    echo "Setup complete."
 
-# Login mode: a machine is set up for Keeper OR for the Muse SDK,
-# never both. Setup asks once and records the choice; the two login
-# steps below honor it. Delete the mode file to choose again.
+# Login mode: a machine is configured for Keeper OR for the Muse SDK,
+# never both, and the configuration is scoped to the booted image
+# version. The state file records the image version setup last
+# configured for, plus the chosen mode. Same version: nothing to do.
+# New version: setup asks again, logs the other side out, and the
+# version is stamped once the whole setup has succeeded (in the setup
+# recipe above). Delete the state file to choose again.
 login-mode:
     #!/usr/bin/bash
     set -euo pipefail
-    mode_file="$HOME/.config/personal-blue/login-mode"
-    if [ -f "$mode_file" ]; then
-        recorded_mode="$(cat "$mode_file")"
+    state_file="$HOME/.config/personal-blue/login-mode"
+    current_version="$(rpm-ostree status --json 2>/dev/null | python3 -c 'import json,sys; print(next((d.get("version","") for d in json.load(sys.stdin)["deployments"] if d.get("booted")), ""))' 2>/dev/null || true)"
+    recorded_version=""
+    recorded_mode=""
+    if [ -f "$state_file" ]; then
+        recorded_version="$(sed -n '1p' "$state_file")"
+        recorded_mode="$(sed -n '2p' "$state_file")"
+        # State files from before version recording held only the mode.
+        if [ -z "$recorded_mode" ]; then
+            case "$recorded_version" in
+                keeper|sdk) recorded_mode="$recorded_version"; recorded_version="" ;;
+            esac
+        fi
         case "$recorded_mode" in
             keeper|sdk) ;;
-            *) echo "Login mode file $mode_file contains '$recorded_mode', which is not a valid mode (keeper or sdk). Fix it by hand or delete it and rerun 'ujust setup'."; exit 1 ;;
+            *) echo "Login mode file $state_file does not contain a valid mode (keeper or sdk). Fix it by hand or delete it and rerun 'ujust setup'."; exit 1 ;;
         esac
-        echo "Login mode: $recorded_mode (recorded in $mode_file; delete the file to choose again)."
+    fi
+    if [ -n "$current_version" ] && [ "$recorded_version" = "$current_version" ]; then
+        echo "Login mode: $recorded_mode (already configured for image $current_version; recorded in $state_file, delete the file to choose again)."
         exit 0
     fi
     echo "This machine can be set up for one login, not both:"
-    echo "  1) Keeper — log in to Keeper on this machine. The Muse SDK will not be set up."
-    echo "  2) Muse SDK — pair the Muse SDK on this machine. Keeper will not be logged in."
+    echo "  1) Keeper — log in to Keeper on this machine. The Muse SDK will be logged out and not set up."
+    echo "  2) Muse SDK — pair the Muse SDK on this machine. Keeper will be logged out."
     read -rp "Choose 1 or 2: " choice
     case "$choice" in
         1) mode="keeper" ;;
         2) mode="sdk" ;;
         *) echo "Please answer 1 or 2."; exit 1 ;;
     esac
-    mkdir -p "$(dirname "$mode_file")"
-    printf '%s\n' "$mode" > "$mode_file"
+    # Enforce the choice: log the other side out. Both teardowns are
+    # best-effort — the other side may never have been set up here.
+    if [ "$mode" = "keeper" ]; then
+        if systemctl cat musegadget.service >/dev/null 2>&1; then
+            echo "Muse SDK: logging out (disabling the service and forgetting the pairing)."
+            sudo systemctl disable --now musegadget.service >/dev/null 2>&1 || true
+            sudo musegadget unpair </dev/null >/dev/null 2>&1 || true
+            sudo rm -f /var/lib/musegadget/pairing.json /var/lib/musegadget/sdk_token
+        fi
+    else
+        if keeper whoami </dev/null >/dev/null 2>&1; then
+            echo "Keeper: logging out."
+            keeper logout </dev/null >/dev/null 2>&1 || true
+            if keeper whoami </dev/null >/dev/null 2>&1; then
+                echo "Keeper: WARNING — still logged in after 'keeper logout'; run 'keeper logout' by hand to finish."
+            fi
+        fi
+    fi
+    mkdir -p "$(dirname "$state_file")"
+    printf '%s\n%s\n' "$recorded_version" "$mode" > "$state_file"
     echo "Login mode: $mode."
 
 # Log in to Keeper CLI (once). Keeper credentials serve Keeper only:
@@ -44,20 +93,31 @@ login-mode:
 keeper-login:
     #!/usr/bin/bash
     set -euo pipefail
-    mode_file="$HOME/.config/personal-blue/login-mode"
-    if [ -f "$mode_file" ]; then
-        recorded_mode="$(cat "$mode_file")"
+    state_file="$HOME/.config/personal-blue/login-mode"
+    current_version="$(rpm-ostree status --json 2>/dev/null | python3 -c 'import json,sys; print(next((d.get("version","") for d in json.load(sys.stdin)["deployments"] if d.get("booted")), ""))' 2>/dev/null || true)"
+    recorded_version=""
+    recorded_mode=""
+    if [ -f "$state_file" ]; then
+        recorded_version="$(sed -n '1p' "$state_file")"
+        recorded_mode="$(sed -n '2p' "$state_file")"
+        # State files from before version recording held only the mode.
+        if [ -z "$recorded_mode" ]; then
+            case "$recorded_version" in
+                keeper|sdk) recorded_mode="$recorded_version"; recorded_version="" ;;
+            esac
+        fi
         case "$recorded_mode" in
-            keeper) ;;
-            sdk)
-                echo "Keeper: skipped — this machine is in Muse SDK mode (see 'ujust login-mode')."
-                exit 0
-                ;;
-            *)
-                echo "Keeper: login mode file $mode_file contains '$recorded_mode', which is not a valid mode (keeper or sdk). Fix it by hand or delete it and rerun 'ujust setup'."
-                exit 1
-                ;;
+            keeper|sdk) ;;
+            *) echo "Keeper: login mode file $state_file does not contain a valid mode (keeper or sdk). Fix it by hand or delete it and rerun 'ujust setup'."; exit 1 ;;
         esac
+    fi
+    if [ -n "$current_version" ] && [ "$recorded_version" = "$current_version" ]; then
+        echo "Keeper: already configured for image $current_version (login mode: $recorded_mode; see 'ujust login-mode')."
+        exit 0
+    fi
+    if [ "$recorded_mode" = "sdk" ]; then
+        echo "Keeper: skipped — this machine is in Muse SDK mode (see 'ujust login-mode')."
+        exit 0
     fi
     if keeper whoami </dev/null >/dev/null 2>&1; then
         echo "Keeper: already logged in."
@@ -152,20 +212,31 @@ gh-setup:
 muse-sdk:
     #!/usr/bin/bash
     set -euo pipefail
-    mode_file="$HOME/.config/personal-blue/login-mode"
-    if [ -f "$mode_file" ]; then
-        recorded_mode="$(cat "$mode_file")"
+    state_file="$HOME/.config/personal-blue/login-mode"
+    current_version="$(rpm-ostree status --json 2>/dev/null | python3 -c 'import json,sys; print(next((d.get("version","") for d in json.load(sys.stdin)["deployments"] if d.get("booted")), ""))' 2>/dev/null || true)"
+    recorded_version=""
+    recorded_mode=""
+    if [ -f "$state_file" ]; then
+        recorded_version="$(sed -n '1p' "$state_file")"
+        recorded_mode="$(sed -n '2p' "$state_file")"
+        # State files from before version recording held only the mode.
+        if [ -z "$recorded_mode" ]; then
+            case "$recorded_version" in
+                keeper|sdk) recorded_mode="$recorded_version"; recorded_version="" ;;
+            esac
+        fi
         case "$recorded_mode" in
-            sdk) ;;
-            keeper)
-                echo "Muse SDK: skipped — this machine is in Keeper mode (see 'ujust login-mode')."
-                exit 0
-                ;;
-            *)
-                echo "Muse SDK: login mode file $mode_file contains '$recorded_mode', which is not a valid mode (keeper or sdk). Fix it by hand or delete it and rerun 'ujust setup'."
-                exit 1
-                ;;
+            keeper|sdk) ;;
+            *) echo "Muse SDK: login mode file $state_file does not contain a valid mode (keeper or sdk). Fix it by hand or delete it and rerun 'ujust setup'."; exit 1 ;;
         esac
+    fi
+    if [ -n "$current_version" ] && [ "$recorded_version" = "$current_version" ]; then
+        echo "Muse SDK: already configured for image $current_version (login mode: $recorded_mode; see 'ujust login-mode')."
+        exit 0
+    fi
+    if [ "$recorded_mode" = "keeper" ]; then
+        echo "Muse SDK: skipped — this machine is in Keeper mode (see 'ujust login-mode')."
+        exit 0
     fi
     if ! systemctl cat musegadget.service >/dev/null 2>&1; then
         echo "Muse SDK: not installed in this image; skipping (install the SDK first)."
