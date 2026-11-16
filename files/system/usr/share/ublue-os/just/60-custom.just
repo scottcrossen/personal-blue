@@ -24,27 +24,46 @@ keeper-login:
     keeper login "$keeper_email"
     keeper whoami </dev/null >/dev/null 2>&1 || { echo "Keeper login did not complete; rerun 'ujust setup'."; exit 1; }
 
-# Git identity (name + email). Prompts; nothing is baked into the image.
+# Git identity (name + email). Prompts only for what is missing and
+# sets only what differs, so reruns are no-ops. Nothing is baked into
+# the image.
 git-identity:
     #!/usr/bin/bash
     set -euo pipefail
-    if [ -n "$(git config --global user.name 2>/dev/null || true)" ] && [ -n "$(git config --global user.email 2>/dev/null || true)" ]; then
-        echo "Git: identity already set ($(git config --global user.name) <$(git config --global user.email)>)."
-        exit 0
+    changed=0
+    git_name="$(git config --global user.name 2>/dev/null || true)"
+    if [ -z "$git_name" ]; then
+        read -rp "Git name: " git_name
+        [ -n "$git_name" ] || { echo "Git name is required."; exit 1; }
+        git config --global user.name "$git_name"
+        changed=1
     fi
-    read -rp "Git name: " git_name
-    read -rp "Git email: " git_email
-    [ -n "$git_name" ] && [ -n "$git_email" ] || { echo "Name and email are required."; exit 1; }
-    git config --global user.name "$git_name"
-    git config --global user.email "$git_email"
-    git config --global url."git@github.com:".insteadOf "https://github.com/"
-    git config --global core.editor vim
-    echo "Git: identity set."
+    git_email="$(git config --global user.email 2>/dev/null || true)"
+    if [ -z "$git_email" ]; then
+        read -rp "Git email: " git_email
+        [ -n "$git_email" ] || { echo "Git email is required."; exit 1; }
+        git config --global user.email "$git_email"
+        changed=1
+    fi
+    if [ "$(git config --global url."git@github.com:".insteadOf 2>/dev/null || true)" != "https://github.com/" ]; then
+        git config --global url."git@github.com:".insteadOf "https://github.com/"
+        changed=1
+    fi
+    if [ "$(git config --global core.editor 2>/dev/null || true)" != "vim" ]; then
+        git config --global core.editor vim
+        changed=1
+    fi
+    if [ "$changed" = 0 ]; then
+        echo "Git: identity already set ($git_name <$git_email>)."
+    else
+        echo "Git: identity set ($git_name <$git_email>)."
+    fi
 
 # GitHub CLI: log in and add an SSH key if there is none.
 gh-setup:
     #!/usr/bin/bash
     set -euo pipefail
+    command -v gh >/dev/null 2>&1 || { echo "GitHub CLI: 'gh' is not installed (it ships in the image); cannot continue."; exit 1; }
     if ! gh auth status >/dev/null 2>&1; then
         echo "GitHub CLI: log in now."
         gh auth login
