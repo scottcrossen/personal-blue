@@ -14,9 +14,17 @@
 # The "QRC encryption failed / ML-KEM" messages are also upstream
 # (keeper-mlkem ships no Python 3.14 wheel) and cannot be fixed from
 # here; Keeper falls back to EC encryption, which is harmless.
-keeper_config_dir="${XDG_DATA_HOME:-"$HOME/.local/share"}/.keeper"
-for f in "$keeper_config_dir/config.json" "$keeper_config_dir/logging_config.yaml"; do
-    [ -f "$f" ] && chmod 600 "$f" 2>/dev/null
+# Keeper's config can live in more than one place: upstream prefers an
+# existing legacy ~/.keeper directory over the platformdirs location
+# (~/.local/share/.keeper), and KEEPER_DATA_HOME overrides the data
+# home. Pre-fix the permissions in every location that has the files;
+# chmod is idempotent and the guards make absent locations no-ops.
+keeper_config_dirs="${XDG_DATA_HOME:-"$HOME/.local/share"}/.keeper $HOME/.keeper"
+[ -n "${KEEPER_DATA_HOME:-}" ] && keeper_config_dirs="$KEEPER_DATA_HOME/.keeper $keeper_config_dirs"
+for d in $keeper_config_dirs; do
+    for f in "$d/config.json" "$d/logging_config.yaml"; do
+        [ -f "$f" ] && chmod 600 "$f" 2>/dev/null
+    done
 done
 PYTHONWARNINGS="ignore::SyntaxWarning${PYTHONWARNINGS:+,$PYTHONWARNINGS}"
 export PYTHONWARNINGS
