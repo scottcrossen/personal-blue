@@ -3,8 +3,14 @@ name: Check Keeper CLI version
 # Keeper Commander (the Keeper CLI) is pinned by version
 # (KEEPER_VERSION in files/scripts/install-keeper-cli.sh). This
 # workflow compares that pin with the latest release on PyPI weekly
-# and opens a PR bumping it when PyPI has moved. The bump PR still
-# needs Scott's and Code Review's approval before merge (dual gate).
+# and opens a PR bumping it when PyPI has moved. The bump PR also
+# regenerates the hash lockfile
+# (files/system/usr/share/personal-blue/keeper-requirements.txt) for
+# the new pin in the same commit — install-keeper-cli.sh refuses to
+# install when the lockfile's keepercommander pin disagrees with
+# KEEPER_VERSION, so a bump without the regeneration cannot build.
+# The bump PR still needs Scott's and Code Review's approval before
+# merge (dual gate).
 #
 # Note: bump PRs are opened with GITHUB_TOKEN, so the Build Custom
 # Image run on a bump PR needs a maintainer to approve the workflow
@@ -55,13 +61,43 @@ jobs:
           assert f'KEEPER_VERSION="{old_pin}"' not in text, "old pin still present"
           open(path, "w").write(text)
           PYEOF
+          # Regenerate the hash lockfile for the new pin (see the
+          # header comment): same uv command the file's own header
+          # documents, with the hand-written header carried over and
+          # its version updated. Fail loudly if the regenerated body
+          # does not pin the new version.
+          req="files/system/usr/share/personal-blue/keeper-requirements.txt"
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+          uv python install 3.14
+          printf 'keepercommander==%s\n' "$latest" > "$RUNNER_TEMP/keeper.in"
+          uv pip compile --python-version 3.14 --generate-hashes "$RUNNER_TEMP/keeper.in" > "$RUNNER_TEMP/keeper.out"
+          python3 - "$req" "$RUNNER_TEMP/keeper.out" "$latest" <<'PYEOF'
+          import re, sys
+          req_path, uv_out, latest = sys.argv[1:4]
+          header_lines = []
+          for line in open(req_path):
+              if line.startswith("#") or not line.strip():
+                  header_lines.append(line)
+              else:
+                  break
+          header = "".join(header_lines)
+          header = re.sub(r"keepercommander==[0-9.]+", f"keepercommander=={latest}", header)
+          assert f"keepercommander=={latest}" in header, "header version update failed"
+          body_lines = open(uv_out).read().splitlines(keepends=True)
+          while body_lines and (body_lines[0].startswith("#") or not body_lines[0].strip()):
+              body_lines.pop(0)
+          body = "".join(body_lines)
+          assert f"keepercommander=={latest} " in body, "regenerated lockfile does not pin the new version"
+          open(req_path, "w").write(header + body)
+          PYEOF
           branch="keeper-bump-${latest}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
-          git add "$script"
-          git commit -m "Bump Keeper CLI pin to ${latest}"
+          git add "$script" "$req"
+          git commit -m "Bump Keeper CLI pin to ${latest} and regenerate the hash lockfile"
           git push -u origin "$branch"
           gh pr create --title "Bump Keeper CLI pin to ${latest}" --body "PyPI now has keepercommander ${latest} (released ${date}); the image pins ${pinned}.
 
-          Updates the pinned version in files/scripts/install-keeper-cli.sh. Needs Scott's and Code Review's approval before merge (dual gate). The image build on this PR is the real test of the new pin — but because this PR was opened with GITHUB_TOKEN, a maintainer must first approve the Build Custom Image workflow run on it."
+          Updates the pinned version in files/scripts/install-keeper-cli.sh and regenerates files/system/usr/share/personal-blue/keeper-requirements.txt for the new pin in the same change (uv pip compile --python-version 3.14 --generate-hashes), so the install script's pin guard passes. Needs Scott's and Code Review's approval before merge (dual gate). The image build on this PR is the real test of the new pin — but because this PR was opened with GITHUB_TOKEN, a maintainer must first approve the Build Custom Image workflow run on it."

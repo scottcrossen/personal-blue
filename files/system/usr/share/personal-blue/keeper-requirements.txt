@@ -15,9 +15,10 @@
 #   uv pip compile --python-version 3.14 --generate-hashes \
 #       keepercommander==18.1.9
 # When KEEPER_VERSION in install-keeper-cli.sh is bumped, regenerate
-# this file the same way in the same change — the install script
-# refuses to install if this file's keepercommander pin disagrees
-# with KEEPER_VERSION. The "# via ..." comments below are the
+# this file the same way in the same change — the check-keeper-cli
+# workflow does this automatically in its bump PRs. The install
+# script refuses to install if this file's keepercommander pin
+# disagrees with KEEPER_VERSION. The "# via ..." comments below are the
 # generator's record of why each package is in the set.
 annotated-types==0.8.0 \
     --hash=sha256:13b2beaad985e05e2d6407ee4c4f35590b11f8d693a258a561055cac8f64cab7 \
