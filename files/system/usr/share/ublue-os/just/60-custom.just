@@ -18,7 +18,12 @@ login-mode:
     set -euo pipefail
     mode_file="$HOME/.config/personal-blue/login-mode"
     if [ -f "$mode_file" ]; then
-        echo "Login mode: $(cat "$mode_file") (recorded in $mode_file; delete the file to choose again)."
+        recorded_mode="$(cat "$mode_file")"
+        case "$recorded_mode" in
+            keeper|sdk) ;;
+            *) echo "Login mode file $mode_file contains '$recorded_mode', which is not a valid mode (keeper or sdk). Fix it by hand or delete it and rerun 'ujust setup'."; exit 1 ;;
+        esac
+        echo "Login mode: $recorded_mode (recorded in $mode_file; delete the file to choose again)."
         exit 0
     fi
     echo "This machine can be set up for one login, not both:"
@@ -39,9 +44,20 @@ login-mode:
 keeper-login:
     #!/usr/bin/bash
     set -euo pipefail
-    if [ -f "$HOME/.config/personal-blue/login-mode" ] && [ "$(cat "$HOME/.config/personal-blue/login-mode")" = "sdk" ]; then
-        echo "Keeper: skipped — this machine is in Muse SDK mode (see 'ujust login-mode')."
-        exit 0
+    mode_file="$HOME/.config/personal-blue/login-mode"
+    if [ -f "$mode_file" ]; then
+        recorded_mode="$(cat "$mode_file")"
+        case "$recorded_mode" in
+            keeper) ;;
+            sdk)
+                echo "Keeper: skipped — this machine is in Muse SDK mode (see 'ujust login-mode')."
+                exit 0
+                ;;
+            *)
+                echo "Keeper: login mode file $mode_file contains '$recorded_mode', which is not a valid mode (keeper or sdk). Fix it by hand or delete it and rerun 'ujust setup'."
+                exit 1
+                ;;
+        esac
     fi
     if keeper whoami </dev/null >/dev/null 2>&1; then
         echo "Keeper: already logged in."
@@ -114,9 +130,18 @@ gh-setup:
         gh auth refresh --hostname github.com --scopes admin:public_key
     fi
     # Presence is checked by the key itself, not its title: the key may
-    # already be on the account under any title.
+    # already be on the account under any title. An empty blob means the
+    # .pub file is unreadable or corrupt — fail loudly rather than let
+    # an empty pattern "match" every key on the account.
     key_blob="$(awk '{print $2}' ~/.ssh/id_ed25519.pub)"
-    if gh api user/keys --jq '.[].key' 2>/dev/null | grep -qF "$key_blob"; then
+    [ -n "$key_blob" ] || { echo "GitHub CLI: ~/.ssh/id_ed25519.pub has no key in it; fix or regenerate the key, then rerun 'ujust setup'."; exit 1; }
+    # A failed keys listing must not be read as "key absent": that path
+    # ends in a redundant upload attempt and a confusing 422.
+    if ! account_keys="$(gh api user/keys --jq '.[].key' 2>/dev/null)"; then
+        echo "GitHub CLI: could not list your GitHub SSH keys; check the connection and rerun 'ujust setup'."
+        exit 1
+    fi
+    if printf '%s\n' "$account_keys" | grep -qF "$key_blob"; then
         echo "GitHub CLI: SSH key already on GitHub."
     else
         echo "GitHub CLI: adding the SSH key to GitHub."
@@ -127,15 +152,31 @@ gh-setup:
 muse-sdk:
     #!/usr/bin/bash
     set -euo pipefail
-    if [ -f "$HOME/.config/personal-blue/login-mode" ] && [ "$(cat "$HOME/.config/personal-blue/login-mode")" = "keeper" ]; then
-        echo "Muse SDK: skipped — this machine is in Keeper mode (see 'ujust login-mode')."
-        exit 0
+    mode_file="$HOME/.config/personal-blue/login-mode"
+    if [ -f "$mode_file" ]; then
+        recorded_mode="$(cat "$mode_file")"
+        case "$recorded_mode" in
+            sdk) ;;
+            keeper)
+                echo "Muse SDK: skipped — this machine is in Keeper mode (see 'ujust login-mode')."
+                exit 0
+                ;;
+            *)
+                echo "Muse SDK: login mode file $mode_file contains '$recorded_mode', which is not a valid mode (keeper or sdk). Fix it by hand or delete it and rerun 'ujust setup'."
+                exit 1
+                ;;
+        esac
     fi
     if ! systemctl cat musegadget.service >/dev/null 2>&1; then
         echo "Muse SDK: not installed in this image; skipping (install the SDK first)."
         exit 0
     fi
-    if sudo test -s /var/lib/musegadget/pairing.json && systemctl is-enabled musegadget.service >/dev/null 2>&1; then
+    # Already-set-up check, deliberately sudo-free: a status check must
+    # not demand a password. This recipe only enables the service after
+    # a successful pairing, so enabled + active means paired. The exact
+    # pairing-file check runs further down, inside the setup path, where
+    # sudo is already needed for the real work.
+    if systemctl is-enabled musegadget.service >/dev/null 2>&1 && systemctl is-active musegadget.service >/dev/null 2>&1; then
         echo "Muse SDK: already paired and enabled."
         exit 0
     fi
