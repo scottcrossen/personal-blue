@@ -22,3 +22,6 @@ modules:
       packages:
         # display configuration tool
         - wdisplays
+        # GitHub CLI — the ujust setup gh-setup step drives it; it must
+        # be in the image, not layered locally
+        - gh
