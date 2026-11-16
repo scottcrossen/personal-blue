@@ -4,6 +4,16 @@
 # Uses a dedicated venv at /opt/keeper so the system Python stays
 # untouched (Fedora marks the system Python externally managed).
 # The `keeper` command is symlinked into /usr/bin.
+#
+# The venv runs on Python 3.13 (the python3.13 package, installed by
+# keeper-modules.yml), NOT the image's Python 3.14: keeper-mlkem
+# ships compiled wheels only up to 3.13 — on 3.14 pip builds it from
+# source, the compiled accelerator silently never gets built, and
+# every keeper run prints "QRC encryption failed: ML-KEM
+# implementation not available" before falling back to EC. Python
+# 3.13 also predates the SyntaxWarning that 3.14 raises on
+# keepercommander's 'return' in a 'finally' block. The requirements
+# file is therefore generated for Python 3.13 (see its header).
 # First-run setup (`ujust setup`) logs in and pulls passwords and
 # tokens from Keeper; nothing secret is baked into the image.
 #
@@ -31,7 +41,7 @@ REQUIREMENTS_FILE="/usr/share/personal-blue/keeper-requirements.txt"
 
 if [ ! -x "${VENV}/bin/keeper" ]; then
     echo "keeper-cli: creating venv at ${VENV}"
-    python3 -m venv "${VENV}"
+    python3.13 -m venv "${VENV}"
     [ -f "${REQUIREMENTS_FILE}" ] || { echo "keeper-cli: requirements file ${REQUIREMENTS_FILE} is missing from the image"; exit 1; }
     grep -qF "keepercommander==${KEEPER_VERSION} " "${REQUIREMENTS_FILE}" || { echo "keeper-cli: ${REQUIREMENTS_FILE} does not pin keepercommander==${KEEPER_VERSION}; regenerate it for this KEEPER_VERSION"; exit 1; }
     "${VENV}/bin/pip" install --quiet --require-hashes -r "${REQUIREMENTS_FILE}"
