@@ -1,0 +1,23 @@
+#!/bin/sh
+# Launcher for Keeper Commander (the real binary is
+# /opt/keeper/bin/keeper, installed at build time by
+# files/scripts/install-keeper-cli.sh). It works around two upstream
+# annoyances:
+#
+# - Keeper leaves its own config files at 0644 and then warns about
+#   their insecure permissions at every startup before fixing them.
+#   Fix them first so the warning never fires.
+# - keepercommander has a 'return' in a 'finally' block, which
+#   Python 3.14 flags with a SyntaxWarning at import. Silence
+#   SyntaxWarning for this process; it is Keeper's code, not ours.
+#
+# The "QRC encryption failed / ML-KEM" messages are also upstream
+# (keeper-mlkem ships no Python 3.14 wheel) and cannot be fixed from
+# here; Keeper falls back to EC encryption, which is harmless.
+keeper_config_dir="${XDG_DATA_HOME:-"$HOME/.local/share"}/.keeper"
+for f in "$keeper_config_dir/config.json" "$keeper_config_dir/logging_config.yaml"; do
+    [ -f "$f" ] && chmod 600 "$f" 2>/dev/null
+done
+PYTHONWARNINGS="ignore::SyntaxWarning${PYTHONWARNINGS:+,$PYTHONWARNINGS}"
+export PYTHONWARNINGS
+exec /opt/keeper/bin/keeper "$@"
