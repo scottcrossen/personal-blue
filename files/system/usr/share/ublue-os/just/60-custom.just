@@ -66,7 +66,11 @@ gh-setup:
     command -v gh >/dev/null 2>&1 || { echo "GitHub CLI: 'gh' is not installed (it ships in the image); cannot continue."; exit 1; }
     if ! gh auth status >/dev/null 2>&1; then
         echo "GitHub CLI: log in now."
-        gh auth login
+        # The flags pre-answer the interactive prompts (host, protocol,
+        # web auth). --skip-ssh-key leaves the key upload to the step
+        # below; --scopes requests the key scope up front, which the
+        # login flow otherwise only grants when it uploads a key itself.
+        gh auth login --hostname github.com --git-protocol ssh --web --skip-ssh-key --scopes admin:public_key
     else
         echo "GitHub CLI: already logged in."
     fi
@@ -74,12 +78,20 @@ gh-setup:
         echo "GitHub CLI: creating an SSH key (you will be prompted for a passphrase)."
         ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
     fi
-    key_title="$(hostname)-$(whoami)"
-    if gh ssh-key list 2>/dev/null | grep -q "$key_title"; then
+    # Listing and adding keys needs the admin:public_key scope; a login
+    # from before this recipe requested it may not have it.
+    if ! gh auth status 2>&1 | grep -q "admin:public_key"; then
+        echo "GitHub CLI: authorizing SSH key access (browser step)."
+        gh auth refresh --hostname github.com --scopes admin:public_key
+    fi
+    # Presence is checked by the key itself, not its title: the key may
+    # already be on the account under any title.
+    key_blob="$(awk '{print $2}' ~/.ssh/id_ed25519.pub)"
+    if gh api user/keys --jq '.[].key' 2>/dev/null | grep -qF "$key_blob"; then
         echo "GitHub CLI: SSH key already on GitHub."
     else
         echo "GitHub CLI: adding the SSH key to GitHub."
-        gh ssh-key add ~/.ssh/id_ed25519.pub --title "$key_title"
+        gh ssh-key add ~/.ssh/id_ed25519.pub --title "Personal Computer"
     fi
 
 # Muse SDK: fetch the token from Keeper, pair, set the run-as user, enable the service.
