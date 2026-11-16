@@ -12,32 +12,54 @@ setup: login-mode keeper-login git-identity gh-setup muse-sdk firefox-flatpak
 
 # Login mode: a machine is set up for Keeper OR for the Muse SDK,
 # never both. Setup asks once and records the choice; the two login
-# steps below honor it. Delete the mode file to choose again.
+# steps below honor it, and this step enforces it on every run by
+# logging the other side out. Delete the mode file to choose again.
 login-mode:
     #!/usr/bin/bash
     set -euo pipefail
     mode_file="$HOME/.config/personal-blue/login-mode"
+    mode=""
     if [ -f "$mode_file" ]; then
         recorded_mode="$(cat "$mode_file")"
         case "$recorded_mode" in
-            keeper|sdk) ;;
+            keeper|sdk) mode="$recorded_mode" ;;
             *) echo "Login mode file $mode_file contains '$recorded_mode', which is not a valid mode (keeper or sdk). Fix it by hand or delete it and rerun 'ujust setup'."; exit 1 ;;
         esac
-        echo "Login mode: $recorded_mode (recorded in $mode_file; delete the file to choose again)."
-        exit 0
+        echo "Login mode: $mode (recorded in $mode_file; delete the file to choose again)."
+    else
+        echo "This machine can be set up for one login, not both:"
+        echo "  1) Keeper — log in to Keeper on this machine. The Muse SDK will be logged out and not set up."
+        echo "  2) Muse SDK — pair the Muse SDK on this machine. Keeper will be logged out."
+        read -rp "Choose 1 or 2: " choice
+        case "$choice" in
+            1) mode="keeper" ;;
+            2) mode="sdk" ;;
+            *) echo "Please answer 1 or 2."; exit 1 ;;
+        esac
+        mkdir -p "$(dirname "$mode_file")"
+        printf '%s\n' "$mode" > "$mode_file"
+        echo "Login mode: $mode."
     fi
-    echo "This machine can be set up for one login, not both:"
-    echo "  1) Keeper — log in to Keeper on this machine. The Muse SDK will not be set up."
-    echo "  2) Muse SDK — pair the Muse SDK on this machine. Keeper will not be logged in."
-    read -rp "Choose 1 or 2: " choice
-    case "$choice" in
-        1) mode="keeper" ;;
-        2) mode="sdk" ;;
-        *) echo "Please answer 1 or 2."; exit 1 ;;
-    esac
-    mkdir -p "$(dirname "$mode_file")"
-    printf '%s\n' "$mode" > "$mode_file"
-    echo "Login mode: $mode."
+    # Enforce the mode: log the other side out. This runs on every
+    # setup run, so a side that was logged back in by hand is logged
+    # out again here. The checks are prompt-free; sudo is only touched
+    # when the SDK is actually set up and has to be torn down.
+    if [ "$mode" = "keeper" ]; then
+        if systemctl cat musegadget.service >/dev/null 2>&1 && { systemctl is-enabled musegadget.service >/dev/null 2>&1 || systemctl is-active musegadget.service >/dev/null 2>&1; }; then
+            echo "Muse SDK: logging out (disabling the service and forgetting the pairing)."
+            sudo systemctl disable --now musegadget.service >/dev/null 2>&1 || true
+            sudo musegadget unpair </dev/null >/dev/null 2>&1 || true
+            sudo rm -f /var/lib/musegadget/pairing.json /var/lib/musegadget/sdk_token
+        fi
+    else
+        if keeper whoami </dev/null >/dev/null 2>&1; then
+            echo "Keeper: logging out."
+            keeper logout </dev/null >/dev/null 2>&1 || true
+            if keeper whoami </dev/null >/dev/null 2>&1; then
+                echo "Keeper: WARNING — still logged in after 'keeper logout'; run 'keeper logout' by hand to finish."
+            fi
+        fi
+    fi
 
 # Log in to Keeper CLI (once). Keeper credentials serve Keeper only:
 # no other setup step reads anything from Keeper.
