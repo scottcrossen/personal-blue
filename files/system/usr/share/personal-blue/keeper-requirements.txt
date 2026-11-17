@@ -13,7 +13,7 @@
 #
 # Generated for Python 3.14 (the image's Python) with:
 #   uv pip compile --python-version 3.14 --generate-hashes \
-#       keepercommander==18.1.9
+#       keepercommander==18.1.10
 # When KEEPER_VERSION in install-keeper-cli.sh is bumped, regenerate
 # this file the same way in the same change — the check-keeper-cli
 # workflow does this automatically in its bump PRs. The install
@@ -607,10 +607,10 @@ keeper-secrets-manager-core==17.3.0 \
     --hash=sha256:80327afaa06a04925acfc2d61f405a0831ef00e6c6fb2fff841a0704d9617221 \
     --hash=sha256:dbd3c2b2160a92aed46c2f5355cbd793492f43ba260379d78957e7ad75a96acf
     # via keepercommander
-keepercommander==18.1.9 \
-    --hash=sha256:56035328a540cbf8db3e0c884ee58e59a2e7182bcb917e20d08cc3f5f17e0c61 \
-    --hash=sha256:e3a2a5650c7c7df84390603cf7c3df8a158195a2a9b9b54a533ef42088f3d5a2
-    # via -r /tmp/keeper-gen/requirements.in
+keepercommander==18.1.10 \
+    --hash=sha256:ad3c509d9cfbcaa9f5ae4c80b996b1cc55e7d7ff22f9cff2f45094fc38fcb69a \
+    --hash=sha256:ec1ff139e2b8c44b4ba13fce2d50fba04798dbe399bf4da242479505d7b17a6a
+    # via -r /home/runner/work/_temp/keeper.in
 keyring==25.7.0 \
     --hash=sha256:be4a0b195f149690c166e850609a477c532ddbfbaed96a404d4e43f8d5e2689f \
     --hash=sha256:fe01bd85eb3f8fb3dd0405defdeac9a5b4f6f0439edbb3149577f244a2e8245b

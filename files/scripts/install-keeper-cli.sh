@@ -27,8 +27,8 @@ set -euo pipefail
 # Single source of truth for the pinned version: KEEPER_VERSION
 # below. The scheduled version-check workflow
 # (.github/workflows/check-keeper-cli.yml) greps it from here.
-KEEPER_VERSION="18.1.9"
-# Pinned 2026-11-03T04:05:35Z: keepercommander 18.1.9 on PyPI
+KEEPER_VERSION="18.1.10"
+# Pinned 2026-11-14T07:05:16.314885Z: keepercommander 18.1.10 on PyPI
 VENV="/opt/keeper"
 REQUIREMENTS_FILE="/usr/share/personal-blue/keeper-requirements.txt"
 
