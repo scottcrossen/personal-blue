@@ -6,8 +6,8 @@
 # info: names, emails and tokens are prompted for at first run,
 # never baked into the image.
 
-# First-run setup: Keeper login, git identity, GitHub CLI, Muse SDK, Firefox flatpak.
-setup: login-mode keeper-login git-identity gh-setup muse-sdk firefox-flatpak
+# First-run setup: Keeper login, git identity, GitHub CLI, Muse SDK, Muse distrobox, Firefox flatpak.
+setup: login-mode keeper-login git-identity gh-setup muse-sdk muse-code-distrobox firefox-flatpak
     @echo "Setup complete."
 
 # Login mode: a machine is set up for Keeper OR for the Muse SDK,
@@ -222,6 +222,55 @@ muse-sdk:
     fi
     sudo systemctl enable --now musegadget.service
     echo "Muse SDK: service enabled."
+
+# Muse distrobox: a default Fedora distrobox named "muse-code"
+# with its own home directory, Muse and the Dev Containers CLI
+# installed inside it. Independent of the login mode above: the box
+# holds no Keeper or Muse SDK credentials, and Muse is signed
+# in inside the box on its first run there.
+muse-code-distrobox:
+    #!/usr/bin/bash
+    set -euo pipefail
+    box_name="muse-code"
+    box_image="registry.fedoraproject.org/fedora-toolbox:44"
+    box_home="$HOME/distrobox/muse-code"
+    if ! command -v distrobox >/dev/null 2>&1; then
+        echo "Muse distrobox: distrobox is not installed on this host; skipping."
+        exit 0
+    fi
+    mkdir -p "$box_home"
+    if podman container exists "$box_name" 2>/dev/null; then
+        echo "Muse distrobox: '$box_name' already exists."
+    else
+        echo "Muse distrobox: creating '$box_name' from $box_image (home: $box_home)."
+        distrobox create --yes --name "$box_name" --image "$box_image" --home "$box_home"
+    fi
+    # Check and install inside the box through a login shell: a plain
+    # 'distrobox enter -- cmd' exec uses the image's stock PATH, which
+    # does not include the box home's ~/.local/bin, so 'muse' would
+    # not be found there even when it is installed.
+    distrobox enter "$box_name" -- bash -lc '
+        set -euo pipefail
+        if ! command -v muse >/dev/null 2>&1; then
+            echo "Muse: installing inside the distrobox."
+            curl -fsSL https://dev.meta.ai/install.sh | sh
+        else
+            echo "Muse: already installed in the distrobox."
+        fi
+        if ! command -v devcontainer >/dev/null 2>&1; then
+            if ! command -v npm >/dev/null 2>&1; then
+                echo "Dev Containers CLI: installing Node.js and npm first."
+                sudo dnf -y install nodejs npm
+            fi
+            echo "Dev Containers CLI: installing inside the distrobox."
+            npm install -g --prefix "$HOME/.local" @devcontainers/cli
+        else
+            echo "Dev Containers CLI: already installed in the distrobox."
+        fi
+        command -v muse >/dev/null
+        command -v devcontainer >/dev/null
+    '
+    echo "Muse distrobox: ready. Enter it with 'distrobox enter muse-code'; the first 'muse' run inside signs you in."
 
 # Firefox flatpak (the $mod+c binding in the sway drop-in expects it).
 firefox-flatpak:
