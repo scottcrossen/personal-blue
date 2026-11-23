@@ -27,8 +27,8 @@
 
 set -euo pipefail
 
-MUSE_SDK_PIN="ebefd65decf5380de46efa6524b1ae53641a29b6"
-# Pinned 2026-11-10T19:50:58Z: Tuya cloud skill: confirm risky switching and label it as cloud (#373)
+MUSE_SDK_PIN="e17081a45941415d483642dbe21c2a2e6ef85a13"
+# Pinned 2026-11-22T19:21:10Z: esp32: keep the internal DMA reserve out of malloc() and in the heap minimum on ESP-IDF v6.0.3 (#491)
 
 REPO="https://github.com/facebookincubator/muse-gadget-sdk"
 INSTALLER_URL="https://raw.githubusercontent.com/facebookincubator/muse-gadget-sdk/${MUSE_SDK_PIN}/linux/install.sh"
